@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect 5 Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: white;
+            padding: 10px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* Join Form */
+        .join-form {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            max-width: 350px;
+            margin: 0 auto 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .join-form.hidden {
+            display: none;
+        }
+
+        .join-form h2 {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .btn-join {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+        }
+
+        .btn-reset {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            margin-top: 10px;
+            max-width: 200px;
+        }
+
+        /* Game Board */
+        .game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .board-container {
+            background: #f4d03f;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: inline-block;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(20, 30px);
+            grid-template-rows: repeat(20, 30px);
+            gap: 2px;
+            background: #c9a227;
+        }
+
+        .cell {
+            width: 30px;
+            height: 30px;
+            background: #2c3e50;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s;
+            position: relative;
+        }
+
+        .cell:hover {
+            background: #34495e;
+        }
+
+        .cell.red {
+            background: radial-gradient(circle at 30% 30%, #ff6b6b, #c0392b);
+            box-shadow: inset 0 -3px 5px rgba(0,0,0,0.3);
+        }
+
+        .cell.blue {
+            background: radial-gradient(circle at 30% 30%, #74b9ff, #2980b9);
+            box-shadow: inset 0 -3px 5px rgba(0,0,0,0.3);
+        }
+
+        .cell.winning {
+            animation: pulse-win 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse-win {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+
+        @keyframes drop {
+            from {
+                transform: translateY(-500px);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .cell.dropping {
+            animation: drop 0.3s ease-in;
+        }
+
+        /* Column hover indicator */
+        .column-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 2px;
+            margin-bottom: 5px;
+        }
+
+        .indicator {
+            width: 30px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .indicator.active {
+            opacity: 1;
+        }
+
+        /* Status Panel */
+        .status-panel {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 15px;
+            text-align: center;
+            margin-top: 15px;
+            backdrop-filter: blur(10px);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .player-info-panel {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 10px;
+        }
+
+        .player-box {
+            padding: 10px 20px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.3);
+        }
+
+        .player-box.active {
+            box-shadow: 0 0 15px rgba(255,255,255,0.5);
+        }
+
+        .player-box.red-player {
+            border: 3px solid #e74c3c;
+        }
+
+        .player-box.blue-player {
+            border: 3px solid #3498db;
+        }
+
+        .player-name {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .player-color {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .status-message {
+            font-size: 1.3em;
+            margin: 10px 0;
+        }
+
+        .waiting {
+            color: #f39c12;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .winner-announcement {
+            font-size: 1.5em;
+            color: #f1c40f;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            animation: celebrate 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes celebrate {
+            from { transform: scale(1); }
+            to { transform: scale(1.05); }
+        }
+
+        .error-message {
+            background: #e74c3c;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .turn-indicator {
+            font-size: 1.2em;
+            padding: 5px 15px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+
+        .turn-indicator.red-turn {
+            background: #e74c3c;
+        }
+
+        .turn-indicator.blue-turn {
+            background: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Connect 5</h1>
+
+        <!-- Join Form -->
+        <div class="join-form" id="joinForm">
+            <h2>Join the Game!</h2>
+            <div id="errorMsg" class="error-message" style="display: none;"></div>
+            <div class="form-group">
+                <label for="playerName">Your Name</label>
+                <input type="text" id="playerName" placeholder="Enter your name" maxlength="15">
+            </div>
+            <button class="btn btn-join" onclick="joinGame()">Join Game</button>
+            <p style="margin-top: 15px; text-align: center; opacity: 0.7;" id="waitingText">
+                Players: <span id="playerCountJoin">0</span>/2
+            </p>
+        </div>
+
+        <!-- Game Area -->
+        <div class="game-wrapper" id="gameArea" style="display: none;">
+            <div class="board-container">
+                <div class="column-indicator" id="columnIndicator"></div>
+                <div class="board" id="board"></div>
+            </div>
+
+            <div class="status-panel">
+                <div class="player-info-panel">
+                    <div class="player-box red-player" id="player1Box">
+                        <div class="player-name" id="player1Name">Waiting...</div>
+                        <div class="player-color">🔴 Red</div>
+                    </div>
+                    <div class="player-box blue-player" id="player2Box">
+                        <div class="player-name" id="player2Name">Waiting...</div>
+                        <div class="player-color">🔵 Blue</div>
+                    </div>
+                </div>
+
+                <div class="status-message" id="statusMessage">Waiting for players...</div>
+                <div id="turnIndicator" class="turn-indicator" style="display: none;"></div>
+                <div id="winnerAnnouncement" class="winner-announcement" style="display: none;"></div>
+
+                <button class="btn btn-reset" id="resetBtn" onclick="resetGame()" style="display: none;">
+                    Play Again
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const ROWS = 20;
+        const COLS = 20;
+
+        let myPlayerNum = null;
+        let myColor = null;
+        let joined = false;
+        let gameStarted = false;
+        let currentTurn = 1;
+
+        // Initialize board
+        function initBoard() {
+            const board = document.getElementById('board');
+            const indicator = document.getElementById('columnIndicator');
+            board.innerHTML = '';
+            indicator.innerHTML = '';
+
+            // Create column indicators
+            for (let col = 0; col < COLS; col++) {
+                const ind = document.createElement('div');
+                ind.className = 'indicator';
+                ind.id = `ind-${col}`;
+                ind.textContent = '▼';
+                indicator.appendChild(ind);
+            }
+
+            // Create board cells
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    cell.addEventListener('click', () => handleCellClick(col));
+                    cell.addEventListener('mouseenter', () => showColumnIndicator(col));
+                    cell.addEventListener('mouseleave', () => hideColumnIndicator(col));
+                    board.appendChild(cell);
+                }
+            }
+        }
+
+        function showColumnIndicator(col) {
+            if (!gameStarted || myPlayerNum !== currentTurn) return;
+            const ind = document.getElementById(`ind-${col}`);
+            ind.classList.add('active');
+            ind.style.color = myColor === 'red' ? '#e74c3c' : '#3498db';
+        }
+
+        function hideColumnIndicator(col) {
+            const ind = document.getElementById(`ind-${col}`);
+            ind.classList.remove('active');
+        }
+
+        function handleCellClick(col) {
+            if (!gameStarted) return;
+            if (myPlayerNum !== currentTurn) {
+                showError("It's not your turn!");
+                return;
+            }
+            socket.emit('drop_piece', { col: col });
+        }
+
+        // Socket event handlers
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            initBoard();
+        });
+
+        socket.on('game_state', (state) => {
+            updateGameState(state);
+        });
+
+        socket.on('joined', (data) => {
+            myPlayerNum = data.player_num;
+            myColor = data.color;
+            joined = true;
+            document.getElementById('joinForm').classList.add('hidden');
+            document.getElementById('gameArea').style.display = 'flex';
+        });
+
+        socket.on('game_started', (data) => {
+            gameStarted = true;
+            document.getElementById('statusMessage').textContent = 'Game Started!';
+            document.getElementById('statusMessage').classList.remove('waiting');
+        });
+
+        socket.on('piece_dropped', (data) => {
+            const cell = document.querySelector(`[data-row="${data.row}"][data-col="${data.col}"]`);
+            if (cell) {
+                cell.classList.add('dropping');
+                setTimeout(() => cell.classList.remove('dropping'), 300);
+            }
+        });
+
+        socket.on('game_won', (winner) => {
+            gameStarted = false;
+            document.getElementById('statusMessage').style.display = 'none';
+            document.getElementById('turnIndicator').style.display = 'none';
+            document.getElementById('winnerAnnouncement').style.display = 'block';
+            document.getElementById('winnerAnnouncement').textContent =
+                `🎉 ${winner.name} (${winner.color.toUpperCase()}) WINS! 🎉`;
+            document.getElementById('resetBtn').style.display = 'inline-block';
+        });
+
+        socket.on('game_draw', () => {
+            gameStarted = false;
+            document.getElementById('statusMessage').style.display = 'none';
+            document.getElementById('turnIndicator').style.display = 'none';
+            document.getElementById('winnerAnnouncement').style.display = 'block';
+            document.getElementById('winnerAnnouncement').textContent = "It's a DRAW!";
+            document.getElementById('resetBtn').style.display = 'inline-block';
+        });
+
+        socket.on('game_reset', () => {
+            gameStarted = true;
+            document.getElementById('statusMessage').style.display = 'block';
+            document.getElementById('winnerAnnouncement').style.display = 'none';
+            document.getElementById('resetBtn').style.display = 'none';
+        });
+
+        socket.on('error', (data) => {
+            showError(data.message);
+        });
+
+        function updateGameState(state) {
+            // Update player count in join form
+            document.getElementById('playerCountJoin').textContent = state.player_count;
+
+            // Update board
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                    if (cell) {
+                        cell.classList.remove('red', 'blue');
+                        if (state.board[row][col] === 1) {
+                            cell.classList.add('red');
+                        } else if (state.board[row][col] === 2) {
+                            cell.classList.add('blue');
+                        }
+                    }
+                }
+            }
+
+            // Update player info
+            state.players.forEach(player => {
+                if (player.player_num === 1) {
+                    document.getElementById('player1Name').textContent = player.name;
+                } else if (player.player_num === 2) {
+                    document.getElementById('player2Name').textContent = player.name;
+                }
+            });
+
+            // Update turn indicator
+            currentTurn = state.current_turn;
+            gameStarted = state.game_started;
+
+            const player1Box = document.getElementById('player1Box');
+            const player2Box = document.getElementById('player2Box');
+            player1Box.classList.remove('active');
+            player2Box.classList.remove('active');
+
+            if (state.game_started && !state.winner) {
+                const turnIndicator = document.getElementById('turnIndicator');
+                turnIndicator.style.display = 'inline-block';
+                turnIndicator.classList.remove('red-turn', 'blue-turn');
+
+                if (state.current_turn === 1) {
+                    turnIndicator.textContent = "🔴 Red's Turn";
+                    turnIndicator.classList.add('red-turn');
+                    player1Box.classList.add('active');
+                } else {
+                    turnIndicator.textContent = "🔵 Blue's Turn";
+                    turnIndicator.classList.add('blue-turn');
+                    player2Box.classList.add('active');
+                }
+
+                document.getElementById('statusMessage').style.display = 'none';
+            } else if (!state.game_started && state.player_count < 2) {
+                document.getElementById('statusMessage').textContent = `Waiting for players... (${state.player_count}/2)`;
+                document.getElementById('statusMessage').classList.add('waiting');
+                document.getElementById('statusMessage').style.display = 'block';
+                document.getElementById('turnIndicator').style.display = 'none';
+            }
+        }
+
+        function joinGame() {
+            const playerName = document.getElementById('playerName').value.trim() || 'Anonymous';
+            socket.emit('join_game', { player_name: playerName });
+        }
+
+        function resetGame() {
+            socket.emit('reset_game');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMsg');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // Enter key to join
+        document.getElementById('playerName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinGame();
+            }
+        });
+
+        // Initialize
+        initBoard();
+    </script>
+</body>
+</html>
