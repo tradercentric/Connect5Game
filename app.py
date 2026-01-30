@@ -7,8 +7,8 @@ app.config['SECRET_KEY'] = 'connect5game2024!'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Game constants
-ROWS = 20
-COLS = 20
+ROWS = 10
+COLS = 10
 CONNECT = 5
 
 # Game state
